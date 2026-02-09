@@ -7,6 +7,7 @@
         <li :class="{ active: activeMenu==='My Profile' }" @click="navigateTo('My Profile', '/employee/profile')">My Profile</li>
         <li :class="{ active: activeMenu==='Notifications' }" @click="navigateTo('Notifications', '/employee/notifications')">Notifications</li>
         <li :class="{ active: activeMenu==='My Payslip' }" @click="navigateTo('My Payslip', '/employee/payslips')">My Payslip</li>
+        <li :class="{ active: activeMenu==='Attendance' }" @click="navigateTo('Attendance', '/employee/attendance')">Attendance</li>
         <li :class="{ active: activeMenu==='Assigned Requests' }" @click="navigateTo('Assigned Requests', '/employee/assigned-requests')">Assigned Requests</li>
         <li class="logout-btn" @click="logout">Logout</li>
       </ul>

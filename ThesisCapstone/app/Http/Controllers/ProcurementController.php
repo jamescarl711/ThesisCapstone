@@ -36,31 +36,39 @@ class ProcurementController extends Controller
 
     // Mark a service request as Job Ready
     // Mark job ready
-    public function markJobReady($id)
-{
-    // Kunin ang request
-    $serviceRequest = ServiceRequest::find($id);
+    public function markJobReady(Request $request, $id)
+    {
+        $r = ServiceRequest::findOrFail($id);
 
-    if (!$serviceRequest) {
-        return response()->json(['message' => 'Service request not found'], 404);
+        if(!$r->materials_needed){
+            return response()->json(['error'=>'No materials added yet'], 400);
+        }
+
+        $r->status = 'job_ready';
+        $r->save();
+
+        return response()->json(['success'=>true]);
     }
 
-    // Siguraduhing current status ay awaiting_material
-    if ($serviceRequest->status !== 'awaiting_material') {
-        return response()->json([
-            'message' => 'Cannot mark job ready. Current status: ' . $serviceRequest->status
-        ], 400);
+    // Add prepared materials to a service request
+    public function addMaterials(Request $request, $id)
+    {
+        $service = ServiceRequest::findOrFail($id);
+
+        foreach ($request->materials as $mat) {
+            RequestMaterial::create([
+                'service_request_id' => $service->id,
+                'material_name' => $mat['name'],
+                'quantity' => $mat['qty'],
+                'unit' => $mat['unit'],
+            ]);
+        }
+
+        $service->status = 'job_ready';
+        $service->save();
+
+        return response()->json(['message' => 'Materials prepared. Job ready.']);
     }
-
-    // Update status to job_ready
-    $serviceRequest->status = 'job_ready';
-    $serviceRequest->save();
-
-    return response()->json([
-        'success' => true,
-        'status' => $serviceRequest->status
-    ]);
-}
 
     // Get suggested materials based on service type
     public function getSuggested($requestId)
@@ -79,6 +87,5 @@ class ProcurementController extends Controller
 
         return response()->json($materials);
     }
-
 
 }

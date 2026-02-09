@@ -68,27 +68,39 @@
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div v-if="user.business.bir_registration">
                     <p class="text-xs text-gray-500 mb-1">BIR Registration</p>
-                    <button type="button" class="w-full" @click="openImagePreview(docUrl(user.business.bir_registration))">
-                      <img :src="docUrl(user.business.bir_registration)" alt="BIR" class="w-full h-32 object-cover rounded border cursor-zoom-in" />
+                    <button v-if="isImage(user.business.bir_registration)" type="button" class="w-full" @click="openImagePreview(docUrl(user.business.bir_registration))">
+                      <img :src="docUrl(user.business.bir_registration)" alt="BIR" class="w-full h-32 object-cover rounded border cursor-zoom-in" @error="onImgError" />
                     </button>
+                    <a v-else :href="docUrl(user.business.bir_registration)" target="_blank" rel="noopener" class="doc-fallback">
+                      View file
+                    </a>
                   </div>
                   <div v-if="user.business.dti_registration">
                     <p class="text-xs text-gray-500 mb-1">DTI Registration</p>
-                    <button type="button" class="w-full" @click="openImagePreview(docUrl(user.business.dti_registration))">
-                      <img :src="docUrl(user.business.dti_registration)" alt="DTI" class="w-full h-32 object-cover rounded border cursor-zoom-in" />
+                    <button v-if="isImage(user.business.dti_registration)" type="button" class="w-full" @click="openImagePreview(docUrl(user.business.dti_registration))">
+                      <img :src="docUrl(user.business.dti_registration)" alt="DTI" class="w-full h-32 object-cover rounded border cursor-zoom-in" @error="onImgError" />
                     </button>
+                    <a v-else :href="docUrl(user.business.dti_registration)" target="_blank" rel="noopener" class="doc-fallback">
+                      View file
+                    </a>
                   </div>
                   <div v-if="user.business.mayor_permit">
                     <p class="text-xs text-gray-500 mb-1">Mayor Permit</p>
-                    <button type="button" class="w-full" @click="openImagePreview(docUrl(user.business.mayor_permit))">
-                      <img :src="docUrl(user.business.mayor_permit)" alt="Mayor Permit" class="w-full h-32 object-cover rounded border cursor-zoom-in" />
+                    <button v-if="isImage(user.business.mayor_permit)" type="button" class="w-full" @click="openImagePreview(docUrl(user.business.mayor_permit))">
+                      <img :src="docUrl(user.business.mayor_permit)" alt="Mayor Permit" class="w-full h-32 object-cover rounded border cursor-zoom-in" @error="onImgError" />
                     </button>
+                    <a v-else :href="docUrl(user.business.mayor_permit)" target="_blank" rel="noopener" class="doc-fallback">
+                      View file
+                    </a>
                   </div>
                   <div v-if="user.business.business_permit">
                     <p class="text-xs text-gray-500 mb-1">Business Permit</p>
-                    <button type="button" class="w-full" @click="openImagePreview(docUrl(user.business.business_permit))">
-                      <img :src="docUrl(user.business.business_permit)" alt="Business Permit" class="w-full h-32 object-cover rounded border cursor-zoom-in" />
+                    <button v-if="isImage(user.business.business_permit)" type="button" class="w-full" @click="openImagePreview(docUrl(user.business.business_permit))">
+                      <img :src="docUrl(user.business.business_permit)" alt="Business Permit" class="w-full h-32 object-cover rounded border cursor-zoom-in" @error="onImgError" />
                     </button>
+                    <a v-else :href="docUrl(user.business.business_permit)" target="_blank" rel="noopener" class="doc-fallback">
+                      View file
+                    </a>
                   </div>
                 </div>
               </div>
@@ -155,11 +167,20 @@ const showModal = ref(false)
 const user = ref({})
 const emit = defineEmits(['user-approved', 'user-rejected'])
 
+const baseUrl = (import.meta?.env?.VITE_APP_URL || window.location.origin || '').replace(/\/+$/, '')
 const docUrl = (value) => {
   if (!value) return ''
   const url = String(value)
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) return url
-  return `/storage/${url}`
+  return `${baseUrl}/storage/${url}`
+}
+const isImage = (value) => {
+  const url = String(value || '').toLowerCase()
+  return url.endsWith('.png') || url.endsWith('.jpg') || url.endsWith('.jpeg') || url.endsWith('.gif') || url.endsWith('.webp')
+}
+const onImgError = (e) => {
+  e.target.classList.add('img-broken')
+  e.target.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160"><rect width="100%" height="100%" fill="#f3f4f6"/><text x="50%" y="50%" font-size="14" fill="#6b7280" text-anchor="middle" dominant-baseline="middle">Image not available</text></svg>')
 }
 
 function openUserModal(userId) {
@@ -246,4 +267,19 @@ defineExpose({ openUserModal })
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+.doc-fallback{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  height:8rem;
+  border:1px dashed #cbd5e1;
+  border-radius:0.5rem;
+  color:#0f766e;
+  background:#f8fafc;
+  font-weight:600;
+}
+.img-broken{
+  object-fit:contain;
+}
 </style>

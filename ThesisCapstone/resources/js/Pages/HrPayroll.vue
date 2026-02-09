@@ -8,6 +8,7 @@
         <li :class="{ active: activeMenu==='Assigned Requests' }" @click="navigateTo('Assigned Requests', '/hr/assigned-requests')">Assigned Requests</li>
         <li :class="{ active: activeMenu==='Accepted Requests' }" @click="navigateTo('Accepted Requests', '/hr/accepted-requests')">Accepted Requests</li>
         <li :class="{ active: activeMenu==='Rejected Requests' }" @click="navigateTo('Rejected Requests', '/hr/rejected-requests')">Rejected Requests</li>
+        <li :class="{ active: activeMenu==='Attendance Management' }" @click="navigateTo('Attendance Management', '/hr/attendance')">Attendance Management</li>
         <li :class="{ active: activeMenu==='Payroll / Compensation' }" @click="navigateTo('Payroll / Compensation', '/hr/payroll')">Payroll / Compensation</li>
         <li :class="{ active: activeMenu==='Recruitment / Onboarding' }" @click="navigateTo('Recruitment / Onboarding', '/hr/recruitment')">Recruitment / Onboarding</li>
         <li :class="{ active: activeMenu==='Reports' }" @click="navigateTo('Reports', '/hr/reports')">Reports</li>
@@ -63,16 +64,22 @@
           <div v-if="selectedEmployee" class="mt-6 space-y-8">
             <h4 class="text-base font-semibold">Payroll for {{ selectedEmployee.name }}</h4>
             <div class="bg-white border border-slate-200 rounded-xl p-4">
-              <label class="text-xs text-slate-500 block mb-2">Pay Date</label>
-              <input
-                type="date"
+              <label class="text-xs text-slate-500 block mb-2">Pay Date (15th and month-end)</label>
+              <select
                 v-model="payDate"
-                :min="payDateMin"
-                :max="payDateMax"`r`n                  required`r`n                class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-              />
+                class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+              >
+                <option value="" disabled>Select pay date</option>
+                <option v-for="option in payDateOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </div>
+            <div v-if="!payDate" class="text-sm text-slate-500">
+              Please select a Pay Date to view attendance, income, deductions, and net pay.
             </div>
             <!-- Attendance Input -->
-            <div>
+            <div v-if="payDate">
               <p class="text-sm font-semibold text-slate-700 mb-3">Attendance</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                   <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
@@ -81,6 +88,7 @@
                       type="number"
                       v-model.number="attendance.daysPresent"
                       @input="limitDays('daysPresent')"
+                      disabled
                       class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
                     />
                   </div>
@@ -90,6 +98,7 @@
                       type="number"
                       v-model.number="attendance.daysAbsent"
                       @input="limitDays('daysAbsent')"
+                      disabled
                       class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
                     />
                   </div>
@@ -99,20 +108,30 @@
                       type="number"
                       v-model.number="attendance.lateDays"
                       @input="limitDays('lateDays')"
+                      disabled
                       class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
                     />
                   </div>
-                    <div class="bg-slate-900 text-white rounded-xl p-4 flex flex-col justify-center">
-                      <span class="text-xs opacity-80">TOTAL WORKING DAYS</span>
-                      <span class="text-2xl font-bold">
-                        {{ attendance.daysPresent }} / {{ totalWorkingDays }}
-                      </span>
-                    </div>
+                  <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <label class="block text-xs font-medium text-slate-500 mb-2">Overtime (mins)</label>
+                    <input
+                      type="number"
+                      v-model.number="attendance.overtimeMinutes"
+                      disabled
+                      class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                    />
+                  </div>
+                  <div class="bg-slate-900 text-white rounded-xl p-4 flex flex-col justify-center">
+                    <span class="text-xs opacity-80">TOTAL WORKING DAYS</span>
+                    <span class="text-2xl font-bold">
+                      {{ attendance.daysPresent }} / {{ totalWorkingDays }}
+                    </span>
+                  </div>
                 </div>
             </div>
 
             <!-- Income / Salary Section -->
-            <div>
+            <div v-if="payDate">
               <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-semibold text-slate-700">Income / Salary</h3>
                 <span class="text-xs text-slate-500">Computed fields</span>
@@ -154,7 +173,7 @@
             </div>
 
             <!-- Deductions Section -->
-            <div>
+            <div v-if="payDate">
               <h3 class="text-sm font-semibold text-slate-700 mb-3">Deductions</h3>
               <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div class="bg-white border border-slate-200 rounded-xl p-4">
@@ -240,7 +259,7 @@
             </div>
 
             <!-- Net Pay -->
-            <div class="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-6 flex justify-between items-center">
+            <div v-if="payDate" class="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-6 flex justify-between items-center">
       <span class="text-lg font-semibold">NET PAY</span>
       <span class="text-3xl font-bold">
         {{ netPay.toFixed(2) }}
@@ -248,7 +267,7 @@
     </div>
 
             <!-- Generate & Clear Payroll -->
-            <div class="flex flex-wrap gap-3">
+            <div v-if="payDate" class="flex flex-wrap gap-3">
               <button @click="generatePayroll" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm transition">
                 Generate Payroll
               </button>
@@ -262,7 +281,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { router } from "@inertiajs/vue3";
 import axios from "axios";
 import Swal from "sweetalert2";
@@ -302,23 +321,26 @@ const employees = ref([]);
 const payDate = ref("");
 const payDateMin = ref("");
 const payDateMax = ref("");
+const payDateOptions = ref([]);
 
 function selectEmployee(emp){
   selectedEmployee.value = emp;
   showEmployeeModal.value = false;
   syncPayDateBounds();
+  fetchAttendanceSummary();
 }
 
 /* ---------------- PAYROLL DATA ---------------- */
 const totalWorkingDays = 15;
 const dailyRate = 500;
-const overtimeHoliday = ref(150);
+const overtimeRatePerTenMinutes = 5;
 
 /* Attendance */
 const attendance = ref({
   daysPresent: 0,
   daysAbsent: 0,
-  lateDays: 0
+  lateDays: 0,
+  overtimeMinutes: 0
 });
 
 /* Allowances */
@@ -371,6 +393,11 @@ const deductions = computed(() => ({
   union: 100,
   others: 50
 }));
+
+const overtimeHoliday = computed(() => {
+  const minutes = num(attendance.value.overtimeMinutes);
+  return (minutes / 10) * overtimeRatePerTenMinutes;
+});
 
 const totalIncome = computed(() =>
   basicSalary.value +
@@ -470,11 +497,11 @@ async function generatePayroll(){
     });
     return;
   }
-  if (payDate.value && (payDate.value < payDateMin.value || payDate.value > payDateMax.value)) {
+  if (!isValidPayDate(payDate.value)) {
     await Swal.fire({
       icon: "warning",
       title: "Invalid Pay Date",
-      text: "Pay Date must be today.",
+      text: "Pay Date must be on the 15th or the last day of the month.",
       confirmButtonText: "OK"
     });
     return;
@@ -532,7 +559,7 @@ async function generatePayroll(){
 }
 
 function clearPayroll(){
-  attendance.value = { daysPresent:0, daysAbsent:0, lateDays:0 };
+  attendance.value = { daysPresent:0, daysAbsent:0, lateDays:0, overtimeMinutes:0 };
   loans.value = { salary:0, sss:0 };
   insurance.value = { health:0, life:0 };
   payDate.value = "";
@@ -555,6 +582,28 @@ const fetchEmployees = async () => {
   }
 };
 
+
+const fetchAttendanceSummary = async () => {
+  if (!selectedEmployee.value?.id) return;
+  try {
+    const res = await axios.get('/hr/attendance/summary', {
+      params: {
+        employee_id: selectedEmployee.value.id,
+        pay_date: payDate.value || null,
+      },
+    });
+    attendance.value.daysPresent = res.data.days_present ?? 0;
+    attendance.value.daysAbsent = res.data.days_absent ?? 0;
+    attendance.value.lateDays = res.data.late_days ?? 0;
+    attendance.value.overtimeMinutes = res.data.overtime_minutes ?? 0;
+  } catch (err) {
+    Swal.fire('Error', 'Failed to load attendance summary.', 'error');
+  }
+};
+
+watch(payDate, () => {
+  fetchAttendanceSummary();
+});
 onMounted(() => {
   syncPayDateBounds();
   fetchEmployees();
@@ -569,12 +618,31 @@ const formatLocalDate = (date) => {
 
 const syncPayDateBounds = () => {
   const now = new Date();
-  const dateString = formatLocalDate(now);
-  payDateMin.value = dateString;
-  payDateMax.value = dateString;
-  if (payDate.value && (payDate.value < payDateMin.value || payDate.value > payDateMax.value)) {
+  const fifteenth = new Date(now.getFullYear(), now.getMonth(), 15);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  payDateOptions.value = [
+    {
+      value: formatLocalDate(fifteenth),
+      label: `${fifteenth.toLocaleString('en-US', { month: 'long' })} 15, ${fifteenth.getFullYear()}`,
+    },
+  ];
+  payDateOptions.value.push({
+    value: formatLocalDate(lastDay),
+    label: `${lastDay.toLocaleString('en-US', { month: 'long' })} ${lastDay.getDate()}, ${lastDay.getFullYear()}`,
+  });
+  payDateMin.value = payDateOptions.value[0].value;
+  payDateMax.value = payDateOptions.value[payDateOptions.value.length - 1].value;
+  if (payDate.value && !isValidPayDate(payDate.value)) {
     payDate.value = "";
   }
+};
+
+const isValidPayDate = (value) => {
+  if (!value) return false;
+  const day = Number(value.split("-")[2]);
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return day === 15 || day === lastDay;
 };
 </script>
 
@@ -590,4 +658,3 @@ const syncPayDateBounds = () => {
 .navbar { background:#fff; padding:16px; border-bottom:1px solid #e5e7eb; }
 .dashboard { padding:24px; }
 </style>
-

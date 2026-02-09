@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Models\PendingRegistration;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Business;
@@ -9,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 
 class RegisteredUserController extends Controller
@@ -22,6 +24,13 @@ class RegisteredUserController extends Controller
     // ================== HANDLE REGISTRATION ==================
     public function store(Request $request)
     {
+        // ================= OTP VERIFICATION CHECK =================
+        if (session('verified_email') !== $request->email) {
+            return back()->withErrors([
+                'email' => 'Please verify your email first before registering.'
+            ]);
+        }
+
         $role = $request->role;
 
         // Base validation rules
@@ -59,10 +68,9 @@ class RegisteredUserController extends Controller
             ]);
         }
 
-        // Validate request
         $validated = $request->validate($rules);
 
-        // CREATE USER (both roles)
+        // CREATE USER
         $userData = [
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
@@ -78,7 +86,7 @@ class RegisteredUserController extends Controller
 
         $user = User::create($userData);
 
-        // CREATE BUSINESS record IF role = business
+        // CREATE BUSINESS RECORD IF NEEDED
         if ($user->role === 'business') {
             $bir = $request->file('bir_registration') ? $request->file('bir_registration')->store('business_docs', 'public') : null;
             $dti = $request->file('dti_registration') ? $request->file('dti_registration')->store('business_docs', 'public') : null;
@@ -100,12 +108,17 @@ class RegisteredUserController extends Controller
             ]);
         }
 
+        // CLEAR OTP SESSION
+        session()->forget('verified_email');
+        session()->forget('register_otp');
+        session()->forget('register_email');
+        session()->forget('otp_expires');
+
         return redirect()->route('login')
             ->with('status', 'Registration successful! Please wait for admin approval if required.');
     }
 
-
-    // ================== LOGIN FOR USERS & BUSINESSES ==================
+    // ================== LOGIN ==================
     public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -134,14 +147,65 @@ class RegisteredUserController extends Controller
         ]);
     }
 
+    // ================== SEND OTP ==================
+    public function sendOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'role'  => 'required|in:user,business',
+        ]);
+
+        $otp = rand(100000, 999999);
+        $expiresAt = now()->addMinutes(10);
+
+        PendingRegistration::updateOrCreate(
+            ['email' => $request->email],
+            [
+                'role'       => $request->role,  // <--- THIS FIXES THE ERROR
+                'otp'        => $otp,
+                'expires_at' => $expiresAt,
+            ]
+        );
+        // Send OTP via email here
+        Mail::to($request->email)->send(new OtpMail($otp));
+
+        return response()->json(['message' => 'OTP sent']);
+    }
+
+
+
+    // ================== VERIFY OTP ==================
+    public function verifyOTP(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp' => 'required'
+        ]);
+
+        if (Session::get('otp_expires') < now()) {
+            return response()->json(['message' => 'OTP expired'], 422);
+        }
+
+        if (
+            Session::get('register_email') == $request->email &&
+            Session::get('register_otp') == $request->otp
+        ) {
+            Session::put('verified_email', $request->email);
+
+            return response()->json(['message' => 'Email verified']);
+        }
+
+        return response()->json(['message' => 'Invalid OTP'], 422);
+    }
+
+    // ================== LOGIN FOR USERS & BUSINESSES ==================
+    
+
     // ================== ADMIN: FETCH ALL USERS ==================
     public function index()
     {
         return response()->json(
-            User::with(['business', 'serviceProvider'])
-                ->where('status', '!=', 'rejected')
-                ->latest()
-                ->get()
+            User::with(['business', 'serviceProvider'])->latest()->get()
         );
     }
 
@@ -201,6 +265,7 @@ class RegisteredUserController extends Controller
 
         return response()->json(['message' => 'User deleted']);
     }
+
 
     public function checkEmail(Request $request)
     {

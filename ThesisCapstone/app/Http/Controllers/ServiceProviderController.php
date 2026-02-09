@@ -416,65 +416,36 @@ public function updateRequest(Request $request, $id)
 {
     $req = ServiceRequest::findOrFail($id);
 
-    $status = $request->status;
-
-    // Define allowed transitions
-    $allowedStatuses = ['awaiting_material', 'job_ready', 'in_progress', 'completed', 'rejected'];
-
-    if (!in_array($status, $allowedStatuses)) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Invalid status'
-        ], 400);
-    }
-
-    switch ($status) {
-        case 'awaiting_material':
-            if ($req->status !== 'assigned') {
-                return response()->json(['success'=>false,'message'=>'Cannot set awaiting_material'], 400);
-            }
-            $req->status = 'awaiting_material';
+    switch($request->status){
+        case 'accepted':
+            $req->status = 'accepted';
             $req->rejection_reason = null;
             break;
 
         case 'rejected':
-            if ($req->status !== 'assigned') {
-                return response()->json(['success'=>false,'message'=>'Cannot reject'], 400);
-            }
             $req->status = 'rejected';
-            $req->rejection_reason = $request->reason ?? null;
-            break;
-
-        case 'job_ready':
-            if ($req->status !== 'awaiting_material') {
-                return response()->json(['success'=>false,'message'=>'Cannot mark job_ready'], 400);
-            }
-            $req->status = 'job_ready';
+            $req->rejection_reason = $request->reason;
             break;
 
         case 'in_progress':
-            if ($req->status !== 'job_ready') {
-                return response()->json(['success'=>false,'message'=>'Cannot start job'], 400);
-            }
             $req->status = 'in_progress';
             break;
 
         case 'completed':
-            if ($req->status !== 'in_progress') {
-                return response()->json(['success'=>false,'message'=>'Cannot complete job'], 400);
-            }
             $req->status = 'completed';
+            // Here you can also handle file upload or photos
+            if($request->proof){
+                $req->proof = $request->proof; 
+            }
+            // Call invoice generation
+            Invoice::createFromRequest($req);
             break;
     }
 
     $req->save();
 
-    return response()->json([
-        'success' => true,
-        'status' => $req->status
-    ]);
+    return response()->json(['success'=>true,'status'=>$req->status]);
 }
-
 
 public function completeJob(Request $request, $id)
 {

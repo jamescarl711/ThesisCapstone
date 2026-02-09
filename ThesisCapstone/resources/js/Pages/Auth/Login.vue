@@ -6,7 +6,6 @@ import PrimaryButton from '@/Components/PrimaryButton.vue'
 import TextInput from '@/Components/TextInput.vue'
 import { Head, Link, useForm, router } from '@inertiajs/vue3'
 import Swal from 'sweetalert2'
-import { ref } from 'vue'
 
 defineProps({
   canResetPassword: Boolean,
@@ -20,10 +19,16 @@ const form = useForm({
   remember: false,
 })
 
-const showPassword = ref(false)
-
 /* ================= SUBMIT ================= */
-const submit = () => {
+const submit = async () => {
+  await Swal.fire({
+    title: 'Loading...',
+    timer: 1500,
+    allowOutsideClick: false,
+    didOpen: () => {
+      Swal.showLoading()
+    }
+  })
   form.post(route('login'), {
     preserveScroll: true,
     onSuccess: (response) => {
@@ -113,23 +118,14 @@ const submit = () => {
 
         <div>
           <InputLabel for="password" value="Password" />
-          <div class="relative">
-            <TextInput
-              id="password"
-              :type="showPassword ? 'text' : 'password'"
-              class="mt-1 block w-full pr-16"
-              v-model="form.password"
-              required
-              autocomplete="current-password"
-            />
-            <button
-              type="button"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-600 hover:text-gray-900"
-              @click="showPassword = !showPassword"
-            >
-              {{ showPassword ? 'Hide' : 'Show' }}
-            </button>
-          </div>
+          <TextInput
+            id="password"
+            type="password"
+            class="mt-1 block w-full"
+            v-model="form.password"
+            required
+            autocomplete="current-password"
+          />
           <InputError class="mt-2" :message="form.errors.password" />
         </div>
 

@@ -11,7 +11,7 @@ class ServiceRequestProof extends Model
 
     protected $fillable = [
         'service_request_id',
-        'file_path',
+        'photo_path',
     ];
 
     public function serviceRequest()

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Business;
 use App\Models\ServiceProvider;
-use Illuminate\Support\Facades\Validator;
 use App\Models\ServiceRequest;
+use App\Notifications\OTPNotification;
 
 class UserController extends Controller
 {
@@ -35,13 +37,13 @@ class UserController extends Controller
             'id','user_id','business_name','owner_name','address','contact_number',
             'category','business_type','latitude','longitude'
         )
-        ->where('status','Approved') // or whatever your approved column is
+        ->where('status','Approved')
         ->get();
 
         return response()->json($businesses);
     }
 
-    // Submit a service request
+    // ================== SUBMIT SERVICE REQUEST ==================
     public function submitServiceRequest(Request $request)
     {
         $request->validate([
@@ -60,7 +62,7 @@ class UserController extends Controller
             'service_type'   => $request->service_type,
             'address_text'   => $request->address_text,
             'notes'          => $request->notes,
-            'preferred_date' => $request->preferred_date, // ✅ FIXED
+            'preferred_date' => $request->preferred_date,
             'latitude'       => $request->latitude,
             'longitude'      => $request->longitude,
             'status'         => 'pending',
@@ -148,7 +150,6 @@ class UserController extends Controller
     // ================== GET APPROVED BUSINESSES ==================
     public function approvedBusinesses()
     {
-        // All businesses available for the user to browse
         $businesses = Business::where('status', 'Approved')
             ->get(['id', 'business_name', 'owner_name', 'category', 'status']);
 
@@ -180,44 +181,44 @@ class UserController extends Controller
 
     // ================== CHECK SERVICE PROVIDER APPLICATION STATUS ==================
     public function applicationStatus()
-{
-    $user = Auth::user();
-    $application = ServiceProvider::where('user_id', $user->id)->first();
+    {
+        $user = Auth::user();
+        $application = ServiceProvider::where('user_id', $user->id)->first();
 
-    if (!$application) {
+        if (!$application) {
+            return response()->json([
+                'hasApplied' => false,
+                'status' => 'none',
+                'reject_reason' => null,
+            ]);
+        }
+
+        $status = 'pending';
+        if ($application->is_approved) {
+            $status = 'approved';
+        } elseif ($application->is_rejected) {
+            $status = 'rejected';
+        }
+
         return response()->json([
-            'hasApplied' => false,
-            'status' => 'none',
-            'reject_reason' => null,
+            'hasApplied' => true,
+            'status' => $status,
+            'reject_reason' => $application->reject_reason,
+            'provider' => [
+                'id' => $application->id,
+                'category' => $application->category,
+                'experience_years' => $application->experience_years,
+                'service_description' => $application->service_description,
+            ]
         ]);
     }
 
-    $status = 'pending';
-    if ($application->is_approved) {
-        $status = 'approved';
-    } elseif ($application->is_rejected) {
-        $status = 'rejected';
-    }
+    // ================== APPLY SERVICE PROVIDER ==================
+    public function applyServiceProvider(Request $request)
+    {
+        $userId = Auth::id();
 
-
-    return response()->json([
-        'hasApplied' => true,
-        'status' => $status,
-        'reject_reason' => $application->reject_reason,
-        'provider' => [
-            'id' => $application->id,
-            'category' => $application->category,
-            'experience_years' => $application->experience_years,
-            'service_description' => $application->service_description,
-        ]
-    ]);
-}
-public function applyServiceProvider(Request $request)
-{
-    $userId = Auth::id();
-
-    // Check latest application
-    $latestApp = ServiceProvider::where('user_id', $userId)->latest()->first();
+        $latestApp = ServiceProvider::where('user_id', $userId)->latest()->first();
 
         if ($latestApp) {
             if ($latestApp->status === 'pending') {
@@ -226,80 +227,68 @@ public function applyServiceProvider(Request $request)
             if ($latestApp->status === 'approved') {
                 return response()->json(['error' => 'You are already an approved service provider'], 400);
             }
-            // If status === 'rejected', allow new application
         }
 
+        $request->validate([
+            'business_id' => 'required|exists:businesses,id',
+            'category' => 'required|string',
+            'experience_years' => 'required|integer|min:0',
+            'service_description' => 'required|string',
+            'valid_id' => 'required|file|mimes:jpg,png,pdf|max:2048',
+        ]);
 
+        $validIdPath = $request->file('valid_id')->store('valid_ids', 'public');
 
-    // Validate request
-    $request->validate([
-        'business_id' => 'required|exists:businesses,id',
-        'category' => 'required|string',
-        'experience_years' => 'required|integer|min:0',
-        'service_description' => 'required|string',
-        'valid_id' => 'required|file|mimes:jpg,png,pdf|max:2048',
-    ]);
+        $sp = ServiceProvider::create([
+            'user_id' => $userId,
+            'business_id' => $request->business_id,
+            'category' => $request->category,
+            'experience_years' => $request->experience_years,
+            'service_description' => $request->service_description,
+            'valid_id' => $validIdPath,
+            'status' => 'pending',
+            'reject_reason' => null,
+        ]);
 
-    // Store valid ID
-    $validIdPath = $request->file('valid_id')->store('valid_ids', 'public');
-
-    // Create new service provider application
-    $sp = ServiceProvider::create([
-        'user_id' => $userId,
-        'business_id' => $request->business_id,
-        'category' => $request->category,
-        'experience_years' => $request->experience_years,
-        'service_description' => $request->service_description,
-        'valid_id' => $validIdPath,
-        'status' => 'pending',
-        'reject_reason' => null,
-    ]);
-
-    return response()->json([
-        'message' => 'Application submitted successfully',
-        'provider' => $sp
-    ]);
-}
-
-public function apply(Request $request)
-{
-    $userId = auth()->id();
-
-    // Check if user already has a pending or approved application
-    $existing = ServiceProvider::where('user_id', $userId)
-        ->whereIn('status', ['pending', 'approved']) // only block these
-        ->first();
-
-    if ($existing) {
-        return response()->json(['error' => 'You already have a pending or approved application'], 400);
+        return response()->json([
+            'message' => 'Application submitted successfully',
+            'provider' => $sp
+        ]);
     }
 
-    // Validate request
-    $request->validate([
-        'business_id' => 'required|exists:businesses,id',
-        'category' => 'required|string',
-        'experience_years' => 'required|integer',
-        'service_description' => 'required|string',
-        'valid_id' => 'required|file|mimes:jpg,png,pdf',
-    ]);
+    // ================== OTP FUNCTIONS ==================
 
-    // Save valid ID
-    $filePath = $request->file('valid_id')->store('valid_ids', 'public');
+    public function sendOTP(Request $request)
+    {
+        $user = Auth::user();
 
-    // Create new application
-    $sp = ServiceProvider::create([
-        'user_id' => $userId,
-        'business_id' => $request->business_id,
-        'category' => $request->category,
-        'experience_years' => $request->experience_years,
-        'service_description' => $request->service_description,
-        'valid_id' => $filePath,
-        'status' => 'pending',
-        'reject_reason' => null,
-    ]);
+        $otp = random_int(100000, 999999);
 
-    return response()->json(['message' => 'Application submitted successfully', 'provider' => $sp]);
-}
+        // Store OTP in cache for 5 minutes
+        Cache::put('otp_'.$user->id, $otp, now()->addMinutes(5));
 
+        try {
+            $user->notify(new OTPNotification($otp));
+            return response()->json(['success' => true, 'message' => 'OTP sent successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Failed to send OTP', 'error' => $e->getMessage()]);
+        }
+    }
 
+    public function verifyOTP(Request $request)
+    {
+        $request->validate([
+            'otp' => 'required|digits:6',
+        ]);
+
+        $user = Auth::user();
+        $cachedOTP = Cache::get('otp_'.$user->id);
+
+        if ($cachedOTP && $cachedOTP == $request->otp) {
+            Cache::forget('otp_'.$user->id);
+            return response()->json(['success' => true, 'message' => 'OTP verified']);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Invalid or expired OTP']);
+    }
 }

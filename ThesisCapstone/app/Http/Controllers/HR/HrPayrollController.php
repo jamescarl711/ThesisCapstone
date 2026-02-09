@@ -4,10 +4,40 @@ namespace App\Http\Controllers\HR;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payroll;
+use App\Models\Attendance;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class HrPayrollController extends Controller
 {
+    public function attendanceSummary(Request $request)
+    {
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'pay_date' => ['nullable', 'date'],
+        ]);
+
+        $date = isset($data['pay_date']) ? Carbon::parse($data['pay_date']) : now();
+        $from = $date->copy()->startOfMonth();
+        $to = $date->copy()->endOfMonth();
+
+        $query = Attendance::where('employee_id', $data['employee_id'])
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to);
+
+        $daysPresent = (clone $query)->where('status', 'present')->count();
+        $daysAbsent = (clone $query)->where('status', 'absent')->count();
+        $lateDays = (clone $query)->where('status', 'late')->count();
+        $overtimeMinutes = (clone $query)->sum('overtime_minutes');
+
+        return response()->json([
+            'days_present' => $daysPresent,
+            'days_absent' => $daysAbsent,
+            'late_days' => $lateDays,
+            'overtime_minutes' => (int) $overtimeMinutes,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
